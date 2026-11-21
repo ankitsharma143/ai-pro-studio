@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ai-pro-studio-proxy
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ALLOWED_ORIGIN
+        value: "*"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

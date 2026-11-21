@@ -1,0 +1,13 @@
+{
+  "name": "ai-pro-studio-node-proxy",
+  "version": "2.0.0",
+  "description": "AI PRO STUDIO — Zero-Dependency Secure Node.js AI Proxy & HTTPS App Server",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node -e \"const s = require('./server/server.js'); if(!s.validateImageDataUrl('data:image/png;base64,AA==')) process.exit(1); console.log('Proxy self-test OK');\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
