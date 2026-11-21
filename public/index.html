@@ -7460,7 +7460,7 @@ const StudioViews = (() => {
             <p class="text-xs text-slate-400">Couple, Love, Natural, Wedding, Birthday, Festival, Royal, Neon & Polaroid frames — Camera ya Gallery se seedha lagayein.</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button data-pick-source="pfUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5">📷 Camera / 📂 Gallery</button>
+            <button data-pick-source="photo-frame" data-pick-input="pfUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5">📷 Camera / 📂 Gallery</button>
             <input id="pfUpload" type="file" accept="image/*" class="hidden"/>
             <button id="pfSaveGalleryBtn" class="btn-secondary px-3 py-2 rounded-xl text-xs font-semibold text-emerald-300">💾 Save Gallery</button>
             <button id="pfDownloadBtn" class="btn-secondary px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300">⬇ Download HD</button>
@@ -7562,7 +7562,7 @@ const StudioViews = (() => {
             <p class="text-xs text-slate-400">Sabhi 15 AI tools aur AI Prompt Generator ko ek hi jagah se control karein — Camera ya Gallery se seedha run karein.</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button data-pick-source="aiccUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold">📷 Camera / 📂 Gallery</button>
+            <button data-pick-source="ai-control-center" data-pick-input="aiccUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold">📷 Camera / 📂 Gallery</button>
             <input id="aiccUpload" type="file" accept="image/*" class="hidden"/>
             <button id="aiccDownloadBtn" class="btn-secondary px-3 py-2 rounded-xl text-xs text-emerald-300">⬇ Download Output</button>
           </div>
@@ -7653,7 +7653,7 @@ const StudioViews = (() => {
             <p class="text-xs text-slate-400">Live preview dekhein, Photo Editor mein apply karein, ya apna custom preset banakar permanent save karein.</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button data-pick-source="spUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold">📷 Camera / 📂 Gallery</button>
+            <button data-pick-source="preset-library" data-pick-input="spUpload" data-pick-kind="photo" class="btn-primary px-3.5 py-2 rounded-xl text-xs font-semibold">📷 Camera / 📂 Gallery</button>
             <input id="spUpload" type="file" accept="image/*" class="hidden"/>
             <button id="spApplyEditorBtn" class="btn-secondary px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300">Apply in Photo Editor →</button>
             <button id="spSaveGalleryBtn" class="btn-secondary px-3 py-2 rounded-xl text-xs font-semibold text-emerald-300">💾 Save Graded PNG</button>
@@ -8154,6 +8154,9 @@ const App = (() => {
     };
 
     document.getElementById('camStartBtn').onclick = startCam;
+    if (state.cameraReturnRoute && !CameraPoseController.getState().cameraActive) {
+      setTimeout(() => { startCam(); }, 180);
+    }
     if (ovBtn) ovBtn.onclick = startCam;
 
     if (flipBtn) flipBtn.onclick = async () => {
@@ -8234,15 +8237,7 @@ const App = (() => {
             album: 'High Zoom Captures'
           });
           await refreshStorage();
-          if (state.cameraReturnRoute) {
-            const retRoute = state.cameraReturnRoute;
-            state.cameraReturnRoute = null;
-            await setActiveImage(res.dataUrl);
-            CameraPoseController.stopCamera();
-            navigate(retRoute);
-            showToast(`High Zoom ${Math.round(res.zoom)}x image loaded into studio!`, 'success');
-            return;
-          }
+          if (await completeCameraReturn(res.dataUrl, 'High Zoom Captures', `High Zoom ${Math.round(res.zoom)}x Photo`)) return;
           const box = document.getElementById('camReviewBox');
           const img = document.getElementById('camReviewImg');
           const badge = document.getElementById('camBlurBadge');
@@ -8294,6 +8289,7 @@ const App = (() => {
       showToast('Capturing 3-frame HDR burst...');
       const res = await CameraPoseController.captureHDRBurst(vid);
       if (res) {
+        if (await completeCameraReturn(res.dataUrl, 'HDR Captures', '3x HDR Photo')) return;
         const box = document.getElementById('camReviewBox');
         const img = document.getElementById('camReviewImg');
         const badge = document.getElementById('camBlurBadge');
@@ -8350,9 +8346,31 @@ const App = (() => {
       showToast(next ? 'Flash Torch ON' : 'Flash Torch OFF');
     };
 
-    const doCapture = () => {
+    const completeCameraReturn = async (dataUrl, albumName = 'Camera Captures', label = 'Photo') => {
+      const dest = state.cameraReturnRoute;
+      if (!dest) return false;
+      state.cameraReturnRoute = null;
+      await StudioStorage.saveMedia({ name: `Camera_${Date.now()}.png`, type: 'photo', dataUrl, album: albumName });
+      await refreshStorage();
+      CameraPoseController.stopCamera();
+      if (dest === 'video-maker' || dest === 'video-editor' || dest === 'cinematic-video') {
+        await VideoStudioEngine.addPhotoClipFromBlobOrUrl(dataUrl, `CameraShot_${Date.now()}.png`, 2.5);
+        navigate(dest);
+        showToast(`${label} added directly to ${dest.replace('-', ' ')}!`, 'success');
+      } else {
+        state.originalBeforeAuto5x = null;
+        state.cutoutDataUrl = null;
+        await setActiveImage(dataUrl);
+        navigate(dest);
+        showToast(`${label} captured & opened directly in ${dest.replace('-', ' ').toUpperCase()}!`, 'success');
+      }
+      return true;
+    };
+
+    const doCapture = async () => {
       const res = CameraPoseController.capturePhotoFromVideo(vid);
       if (!res) { showToast('Start the camera first to capture a photo.', 'error'); return; }
+      if (await completeCameraReturn(res.dataUrl, 'Camera Captures', 'Photo')) return;
       const box = document.getElementById('camReviewBox');
       const img = document.getElementById('camReviewImg');
       const badge = document.getElementById('camBlurBadge');
